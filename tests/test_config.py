@@ -24,7 +24,7 @@ def test_valid_config_hides_secrets(env):
 
 @pytest.mark.parametrize("name,value", [
     ("TWILIO_AUTH_TOKEN", ""), ("TWILIO_ACCOUNT_SID", "not-an-account"),
-    ("TRIGGER_CODE", "1234"), ("TRIGGER_CODE", "12345678#"),
+    ("TRIGGER_CODE", "1"), ("TRIGGER_CODE", "12345678#"),
     ("PUBLIC_BASE_URL", "http://dial.example.com"),
     ("PUBLIC_BASE_URL", "https://user:pass@dial.example.com"),
     ("PUBLIC_BASE_URL", "https://dial.example.com/prefix"),
@@ -48,3 +48,8 @@ def test_worker_requires_an_executable(env, monkeypatch, tmp_path):
         WorkerConfig.from_env()
     path.chmod(0o700)
     assert WorkerConfig.from_env().script == path
+
+
+def test_two_digit_code_is_supported(env, monkeypatch):
+    monkeypatch.setenv("TRIGGER_CODE", "12")
+    assert WebConfig.from_env().code == "12"

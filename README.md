@@ -26,7 +26,8 @@ PBX VM is unnecessary.
   Set it to `false` to finish the recording before listening for the code.
 - `DIGIT_TIMEOUT_SECONDS=10` allows pauses of less than ten seconds between keys.
   `#` submits immediately; a timeout also submits the digits collected so far.
-  The code may contain digits and `*`, but not the terminating `#`.
+  The code accepts 2–32 digits or `*`, but not the terminating `#`. Short codes
+  such as `12` are suitable for the demo; prefer at least 8 random digits for real actions.
 - A correct code queues the command and says **“Command accepted.”** This means
   queued, not completed. A wrong/empty code ends the call; redial to try again.
 - Ordinary pauses are supported. Precise pause lengths and key-hold duration

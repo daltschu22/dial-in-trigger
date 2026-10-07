@@ -56,8 +56,8 @@ class WebConfig:
         if not all(re.fullmatch(r"\+[1-9][0-9]{7,14}", x) for x in (number, *allowed)):
             raise ValueError("Phone numbers must use E.164 format, such as +12025550100.")
         code = required("TRIGGER_CODE")
-        if not re.fullmatch(r"[0-9*]{8,32}", code):
-            raise ValueError("TRIGGER_CODE must contain 8–32 keypad characters (digits or *); # submits.")
+        if not re.fullmatch(r"[0-9*]{2,32}", code):
+            raise ValueError("TRIGGER_CODE must contain 2–32 keypad characters (digits or *); # submits.")
         greeting = os.getenv("GREETING_FILE", "").strip()
         greeting_file = Path(greeting) if greeting else None
         if greeting_file and (not greeting_file.is_absolute() or not greeting_file.is_file()):
