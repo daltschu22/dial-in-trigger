@@ -1,0 +1,27 @@
+[Unit]
+Description=Dial-in trigger script worker on container-host
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/dial-in-trigger:1
+ContainerName=dial-in-trigger-worker
+Network=services.network
+Exec=python -m dial_in_trigger worker
+EnvironmentFile=/opt/services/dial-in-trigger/worker.env
+Volume=/opt/services/dial-in-trigger/data:/data:rw
+Volume=/opt/services/dial-in-trigger/scripts:/scripts:ro
+User=10001:10001
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+Tmpfs=/tmp:rw,noexec,nosuid,size=32m
+
+[Service]
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,19 @@
+# Merge this host into your existing Caddy configuration.
+# The app validates signatures against PUBLIC_BASE_URL, which must match this host.
+dial.example.com {
+    @voice {
+        method POST
+        path /voice /activate
+    }
+    handle @voice {
+        reverse_proxy dial-in-trigger-web:8787
+    }
+    @greeting {
+        method GET HEAD
+        path /greeting
+    }
+    handle @greeting {
+        reverse_proxy dial-in-trigger-web:8787
+    }
+    respond 404
+}

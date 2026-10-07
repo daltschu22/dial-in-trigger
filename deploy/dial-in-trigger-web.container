@@ -1,0 +1,31 @@
+[Unit]
+Description=Dial-in trigger voice webhook
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/dial-in-trigger:1
+ContainerName=dial-in-trigger-web
+Network=services.network
+EnvironmentFile=/opt/services/dial-in-trigger/web.env
+Volume=/opt/services/dial-in-trigger/data:/data:rw
+Volume=/opt/services/dial-in-trigger/media:/media:ro
+User=10001:10001
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+Tmpfs=/tmp:rw,noexec,nosuid,size=32m
+HealthCmd=python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/healthz', timeout=4)"
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=15s
+
+[Service]
+Restart=always
+RestartSec=3
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
+

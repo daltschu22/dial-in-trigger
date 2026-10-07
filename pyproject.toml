@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dial-in-trigger"
+version = "0.1.0"
+description = "Dial a Twilio number, enter a code, and run a script on your own server."
+requires-python = ">=3.11"
+dependencies = ["Flask>=3.1,<4", "twilio>=9.11,<10", "gunicorn>=23,<26"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[tool.setuptools.packages.find]
+include = ["dial_in_trigger*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
