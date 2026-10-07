@@ -241,4 +241,3 @@ def test_stale_queued_job_expires(config):
         db.execute("UPDATE jobs SET created=?", (time.time() - 301,))
     assert store.claim() is None
     assert store.jobs()[0]["status"] == "expired"
-

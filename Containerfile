@@ -9,4 +9,3 @@ RUN pip install --no-cache-dir -c requirements.lock . && \
 USER 10001:10001
 EXPOSE 8787
 CMD ["gunicorn", "--bind", "0.0.0.0:8787", "--workers", "2", "--threads", "2", "dial_in_trigger.web:create_app()"]
-

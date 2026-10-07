@@ -116,4 +116,3 @@ class Store:
     def jobs(self):
         with self.connect() as db:
             return [dict(row) for row in db.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT 20")]
-

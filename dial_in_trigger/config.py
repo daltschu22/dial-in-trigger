@@ -85,4 +85,3 @@ class WorkerConfig:
         if not script.is_absolute() or not script.is_file() or not os.access(script, os.X_OK):
             raise ValueError("TRIGGER_SCRIPT must be an absolute path to an executable file.")
         return cls(state_dir(), script, positive_int("SCRIPT_TIMEOUT_SECONDS", 60))
-

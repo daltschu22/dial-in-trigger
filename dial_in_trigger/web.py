@@ -96,4 +96,3 @@ def create_app(config=None):
         return goodbye(messages[result])
 
     return app
-

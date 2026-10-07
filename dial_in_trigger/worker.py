@@ -89,4 +89,3 @@ def serve(config):
         while not stop.is_set():
             if not run_next(config, store, stop):
                 stop.wait(0.5)
-

@@ -17,4 +17,3 @@ include = ["dial_in_trigger*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
