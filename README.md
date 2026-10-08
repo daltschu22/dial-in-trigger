@@ -8,7 +8,7 @@ Phone → Twilio (audio + keypad decoding) → signed HTTPS webhook
       → web container → persistent SQLite queue → worker container → local script
 ```
 
-Both containers run on `container-host`. Twilio does not execute the script.
+Both containers run on your server. Twilio handles the call; the local worker executes the script.
 The worker executes an explicitly configured file inside its container. Mount
 specific directories if the script needs server files; it has no implicit access
 to the host filesystem or container socket. For host-level actions, integrate a
@@ -39,45 +39,88 @@ or arbitrary media-file endpoint is exposed.
 
 ## Setup
 
-The example number is **+12025550100**, with existing phone-number SID
-`PN00000000000000000000000000000000`. This project does not buy a number.
+You need a voice-enabled Twilio number, its account SID and Auth Token, and an
+HTTPS hostname that can reach the web container. All examples use fictional
+identifiers. This project does not buy a phone number or modify its settings.
 
-1. Build the image: `podman build -t localhost/dial-in-trigger:1 .`
-2. Create persistent host directories under `/opt/services/dial-in-trigger`:
-   `data` (UID/GID 10001, mode 0700), `scripts`, and `media`.
-3. Copy `scripts/demo.sh` to the host's `scripts/trigger.sh`, mode 0755.
-   It writes a timestamp and call ID to `/data/demo-runs.log` and does nothing else.
-4. Create root-readable `web.env` using `.env.example`, with the account's Auth
-   Token, your private code, and the actual public HTTPS origin. An API key secret
-   cannot replace the Auth Token for webhook signature validation.
-5. Create a separate root-readable `worker.env` containing only:
+### Docker Compose
 
-   ```dotenv
-   DIAL_IN_STATE_DIR=/data
-   TRIGGER_SCRIPT=/scripts/trigger.sh
-   SCRIPT_TIMEOUT_SECONDS=60
-   ```
+```sh
+cp .env.example .env
+chmod 600 .env
+# Edit .env: account SID, Auth Token, your number, HTTPS origin, and private code.
+docker compose up -d --build
+```
 
-6. Install the two `deploy/*.container` Quadlets in `/etc/containers/systemd/`.
-   They use the existing `services.network`. Run `systemctl daemon-reload`, then
-   `systemctl start dial-in-trigger-web dial-in-trigger-worker`. Quadlet's
-   `[Install]` section handles startup at boot; do not enable generated units.
-7. Route the hostname through Caddy and the existing Cloudflare Tunnel. Expose
-   only POST `/voice`, POST `/activate`, and GET/HEAD `/greeting`; see the Caddy
-   example. Keep `/healthz` internal. `PUBLIC_BASE_URL` must match the external
-   origin exactly, even though Caddy forwards plain HTTP inside the container network.
-8. Configure the existing number's **Voice → A call comes in** webhook to
-   `https://YOUR-HOST/voice`, method **POST**. Inspect its current voice application
-   or SIP trunk first; those can take precedence over the webhook. SMS settings
-   and outgoing calls are separate.
+The HTTP listener binds to `127.0.0.1:8787` by default. Put your HTTPS reverse
+proxy or tunnel in front of it, using `deploy/Caddyfile.example` as a routing
+example. A containerized proxy needs access to the Compose network; a proxy on
+the same host can forward to `127.0.0.1:8787`. Set `WEB_PORT` if that port is busy.
+Only expose POST `/voice`, POST `/activate`, and GET/HEAD `/greeting` publicly.
+Keep `/healthz` private.
 
-`home-ansible` owns deployment on the homelab and `home-tf/cloudflare` owns public
-DNS/tunnel routing. Twilio resources are not currently Terraform-managed. The
-existing account, number, and other app's stored credentials can be reused.
+The named volumes retain SQLite state, scripts, and greeting audio across
+rebuilds. The scripts volume is initially populated with the harmless demo,
+which writes a timestamp and call ID to `/data/demo-runs.log`. Do not run
+`docker compose down -v` unless you intend to delete this state and its replay
+protection. Back up the volumes before migrating or replacing a deployment.
+
+In Twilio, set the number's **Voice → A call comes in** webhook to
+`https://YOUR-HOST/voice`, method **POST**. `PUBLIC_BASE_URL` must match that
+HTTPS origin exactly. An API key secret cannot replace the Account Auth Token
+for webhook signature verification.
+
+### Coolify
+
+Create a Git repository application, select the **Docker Compose** build pack,
+and use `/docker-compose.yaml`. Set the variables below in the application's
+runtime environment before deploying. The Compose file explicitly passes
+credentials only to the web service; the worker receives no Twilio secrets.
+Disable previews so they cannot receive production credentials or share state.
+
+| Variable | Purpose |
+| --- | --- |
+| `TWILIO_ACCOUNT_SID` | Your account's AC identifier |
+| `TWILIO_AUTH_TOKEN` | Your account's secret webhook signing token |
+| `TWILIO_PHONE_NUMBER` | Your number in E.164 format |
+| `PUBLIC_BASE_URL` | Your external HTTPS origin |
+| `TRIGGER_CODE` | The private keypad sequence |
+| `VOICE_PROMPT` | Spoken greeting when no audio file is selected |
+| `GREETING_FILE` | Optional absolute path under `/media` |
+| `GREETING_INTERRUPTIBLE` | Whether a key can interrupt the audio |
+| `DIGIT_TIMEOUT_SECONDS` | Allowed pause between digits, default 10 |
+| `ALLOWED_CALLERS` | Optional comma-separated caller filter |
+| `TRIGGER_SCRIPT` | Script path inside the worker, default `/scripts/trigger.sh` |
+| `SCRIPT_TIMEOUT_SECONDS` | Script time limit, default 60 |
+| `WEB_BIND_ADDRESS` / `WEB_PORT` | Local listener, default `127.0.0.1:8787` |
+
+This Compose definition uses an external HTTPS proxy/tunnel, with automatic
+Traefik routing disabled. Route only the three public endpoints described above.
+Use Coolify's Git integration for code deployments. Terraform can manage the
+application and its runtime variables separately; personal deployment values
+and Terraform state should not live in a public application repository.
+
+To install a recording, use an administrator maintenance container or the media
+volume's host directory to copy in a readable audio file. Set
+`GREETING_FILE=/media/greeting.wav` and redeploy. Use the same process to install
+an executable script in the scripts volume. Both mounts are read-only inside
+the running application containers. The project does not include third-party
+recordings.
+
+### Podman
+
+`deploy/*.container` provides alternative rootful Quadlets. They expect host
+folders under `/opt/services/dial-in-trigger` and a shared `services.network`.
+Create the network or adapt the units to your proxy's network. Give the `data`
+directory UID/GID 10001 and mode 0700; scripts and media must be readable by that
+UID. Create root-only `web.env` and `worker.env` files containing the appropriate
+variables from the table. Keep the Auth Token and keypad code out of `worker.env`.
+Install the Quadlets, reload systemd, and start both services. Do not run the
+Compose and Quadlet workers against independent copies of the same live state.
 
 ## Running your script
 
-Replace the host's `scripts/trigger.sh` with your executable script. It runs as
+Replace `trigger.sh` in the scripts volume with your executable script. It runs as
 UID 10001, without a shell-built command or caller-supplied arguments. The default
 image includes Python and `/bin/sh`; add required packages to the Containerfile.
 Use `/data` for writable state, or explicitly add the required bind mounts.
@@ -89,12 +132,12 @@ call ID as an idempotency key if your script invokes another service.
 Inspect execution without exposing configuration:
 
 ```sh
-sudo podman exec dial-in-trigger-worker python -m dial_in_trigger jobs
-sudo journalctl -u dial-in-trigger-worker
-sudo cat /opt/services/dial-in-trigger/data/demo-runs.log
+docker compose exec worker python -m dial_in_trigger jobs
+docker compose logs worker
+docker compose exec worker cat /data/demo-runs.log
 ```
 
-Script stdout/stderr go to the worker's journal; scripts should avoid printing
+Script stdout/stderr go to the worker's container logs; scripts should avoid printing
 their own secrets. Execution has a configurable timeout, and shutdown/timeout
 terminates the script's process group. Scripts must run in the foreground and
 must not daemonize or escape their process group.
@@ -108,6 +151,7 @@ must not daemonize or escape their process group.
   rolling five-minute window. Caller ID is an extra filter, not authentication.
 - Each call requires its original five-minute session nonce. Decisions and call
   IDs persist, so retries and application restarts cannot enqueue the call twice.
+- The always-running worker polls for work every half-second while idle.
 - SQLite transactions serialize submissions. A process lock permits one worker.
   One queued/running job and a thirty-second cooldown prevent overlapping launches.
 - Queued jobs expire after five minutes. A job interrupted after being claimed
@@ -136,3 +180,7 @@ References: [Gather](https://www.twilio.com/docs/voice/twiml/gather),
 [Play](https://www.twilio.com/docs/voice/twiml/play),
 [request validation](https://www.twilio.com/docs/usage/security),
 [phone-number API](https://www.twilio.com/docs/phone-numbers/api/incomingphonenumber-resource).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

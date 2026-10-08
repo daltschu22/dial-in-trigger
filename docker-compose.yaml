@@ -1,0 +1,64 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Containerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8787}:8787"
+    environment:
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:?}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?}
+      TRIGGER_CODE: ${TRIGGER_CODE:?}
+      ALLOWED_CALLERS: ${ALLOWED_CALLERS:-}
+      VOICE_PROMPT: ${VOICE_PROMPT-Enter your access code, followed by pound.}
+      GREETING_FILE: ${GREETING_FILE:-}
+      GREETING_INTERRUPTIBLE: ${GREETING_INTERRUPTIBLE:-true}
+      DIGIT_TIMEOUT_SECONDS: ${DIGIT_TIMEOUT_SECONDS:-10}
+      DIAL_IN_STATE_DIR: /data
+    volumes:
+      - state:/data
+      - media:/media:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/healthz', timeout=4)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      traefik.enable: "false"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Containerfile
+    command: [python, -m, dial_in_trigger, worker]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    environment:
+      DIAL_IN_STATE_DIR: /data
+      TRIGGER_SCRIPT: ${TRIGGER_SCRIPT:-/scripts/trigger.sh}
+      SCRIPT_TIMEOUT_SECONDS: ${SCRIPT_TIMEOUT_SECONDS:-60}
+    volumes:
+      - state:/data
+      - scripts:/scripts:ro
+    labels:
+      traefik.enable: "false"
+
+volumes:
+  state:
+  media:
+  scripts:

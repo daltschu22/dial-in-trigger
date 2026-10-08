@@ -1,5 +1,5 @@
 [Unit]
-Description=Dial-in trigger script worker on container-host
+Description=Dial-in trigger script worker
 After=network-online.target
 Wants=network-online.target
 
